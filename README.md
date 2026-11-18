@@ -426,6 +426,50 @@ python main.py --url "VIDEO_URL" --hook-v2 --hook-v2-items 4 --hook-v2-style "gl
 > [!IMPORTANT]
 > Audio-based features (diarization) require a **HuggingFace Token** (`HF_TOKEN`) in your `.env` file and acceptance of the Pyannote model agreement on HuggingFace.
 
+## 🎮 Content Profiles (`--content-profile`)
+
+The AI prompt decides what counts as a good moment. Pick the one that matches your source:
+
+| Profile | Use for | What the AI looks for | Metadata |
+|---------|---------|------------------------|----------|
+| `podcast` (default) | Talk shows, podcasts, interviews | Insight, emotion, opinions; classifies into the Business / Life / Creator / Muslim accounts | English + Indonesian fields |
+| `gaming` | Gaming streams & videos (e.g. GTA 6) | Streamer reactions, fails & chaos, clutch plays, reveals/news, hot takes; skips menu talk and dead air; ignores in-game dialogue as "the streamer"; no stock B-roll | All English (legacy `*_id` fields filled in English); categories Highlights / Funny / News / Reaction (`Gaming.*`) |
+
+```bash
+python main.py --url "VIDEO_URL" --content-profile gaming --clips 5
+```
+
+The gaming prompt only sees the transcript, so it judges moments by what the streamer says and how loudly — a silent but impressive play will not be found.
+
+## 🔴 Live Stream Mode
+
+`--live` clips a stream **while it is still live** instead of waiting for the replay. The stream is recorded continuously in short segments; every `--live-step` seconds the last `--live-window` seconds are transcribed, the AI picks the strongest moment, and the clip is rendered while recording continues.
+
+```bash
+python main.py --url "https://www.youtube.com/@CHANNEL/live" --live --content-profile gaming --yt-cookies youtube_cookies.txt
+
+# Tighter: look at the last 8 min every 3 min, up to 2 clips each time, stop after 4 hours
+python main.py --url "STREAM_URL" --live --live-window 480 --live-step 180 \
+  --live-clips-per-window 2 --live-min-score 85 --live-max-hours 4
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--live` | off | Enable live mode (one URL only) |
+| `--live-window` | `600` | Seconds of recent stream the AI reads each time |
+| `--live-step` | `300` | How often (seconds) a new window is analysed |
+| `--live-segment` | `10` | Recording segment length (seconds) |
+| `--live-min-score` | `80` | Only render clips with `viral_score` ≥ this |
+| `--live-clips-per-window` | `1` | Max clips per window |
+| `--live-max-hours` | `0` | Stop after N hours (0 = until the stream ends / Ctrl+C) |
+
+How it behaves:
+- Windows overlap by `window − step` seconds (keep it ≥ 180s, the max clip length). A moment that ends too close to the live edge is deferred to the next window so it is never cut off, and a moment already clipped is never rendered twice.
+- Clips appear roughly `--live-step` + processing time after the moment happens — a few minutes on a GPU. On CPU, Whisper may fall behind; the log warns when part of the stream is skipped.
+- Output goes to `outputs/live/<timestamp>/window_NNNN/`, with `live_manifest.json` listing every clip and its position in the stream (`live_stream_start` / `live_stream_end`, seconds since recording began).
+- If the recorder drops (stream URLs expire after a few hours), it reconnects automatically and stops when the stream ends. Only recent segments are kept on disk.
+- Each window is one AI request, so a 4-hour stream with the default step makes ~48 requests.
+
 ## 🗣️ AI Voice-Over Commentary
 
 Prevent YouTube copyright/reused content strikes by turning raw clips into **original commentary/reaction videos** automatically.

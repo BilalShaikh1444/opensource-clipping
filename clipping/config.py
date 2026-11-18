@@ -28,6 +28,13 @@ FONT_DIR = os.path.abspath(os.path.join(BASE_DIR, "custom_fonts"))
 JUMLAH_CLIP = 7
 PILIHAN_RASIO = "9:16"
 
+# 1b. LIVE STREAM MODE (--live)
+LIVE_WINDOW_SECONDS = 600     # AI looks at the last 10 minutes
+LIVE_STEP_SECONDS = 300       # ...every 5 minutes (5 min overlap >= max clip length)
+LIVE_SEGMENT_SECONDS = 10
+LIVE_MIN_SCORE = 80
+LIVE_CLIPS_PER_WINDOW = 1
+
 # 2. PENGATURAN KONTEN & HOOK
 MAX_KATA_PER_SUBTITLE = 5
 DURASI_HOOK = 3
@@ -264,6 +271,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=PILIHAN_RASIO,
         choices=["9:16", "16:9", "1:1", "3:4", "4:5"],
         help="Output aspect ratio",
+    )
+    p.add_argument(
+        "--content-profile",
+        choices=["podcast", "gaming"],
+        default="podcast",
+        help="What the AI looks for. 'podcast' = original prompt (Indonesian talk/podcast accounts). "
+             "'gaming' = English prompt for gaming streams/videos: reactions, fails, clutch plays, reveals.",
     )
     p.add_argument(
         "--source-height",
@@ -775,6 +789,51 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Watermark image height as %% of frame height (1-100). Default: 15.",
     )
 
+    # --- Live Stream Mode ---
+    live_group = p.add_argument_group("Live Stream Mode")
+    live_group.add_argument(
+        "--live",
+        action="store_true",
+        default=False,
+        help="Clip a stream while it is live: record continuously and render clips from a rolling window. Single URL only.",
+    )
+    live_group.add_argument(
+        "--live-window",
+        type=int,
+        default=LIVE_WINDOW_SECONDS,
+        help="Seconds of the most recent stream the AI looks at each time.",
+    )
+    live_group.add_argument(
+        "--live-step",
+        type=int,
+        default=LIVE_STEP_SECONDS,
+        help="Analyse a new window every N seconds. Window minus step is the overlap; keep it >= 180s.",
+    )
+    live_group.add_argument(
+        "--live-segment",
+        type=int,
+        default=LIVE_SEGMENT_SECONDS,
+        help="Recording segment length in seconds.",
+    )
+    live_group.add_argument(
+        "--live-min-score",
+        type=int,
+        default=LIVE_MIN_SCORE,
+        help="Only render clips with an AI viral_score at or above this (1-100).",
+    )
+    live_group.add_argument(
+        "--live-clips-per-window",
+        type=int,
+        default=LIVE_CLIPS_PER_WINDOW,
+        help="Max clips rendered from each window.",
+    )
+    live_group.add_argument(
+        "--live-max-hours",
+        type=float,
+        default=0,
+        help="Stop after this many hours (0 = until the stream ends or Ctrl+C).",
+    )
+
     return p
 
 
@@ -789,6 +848,20 @@ def build_config(argv: list[str] | None = None) -> SimpleNamespace:
 
     # Normalize URL list for batch support
     url_list = args.url if isinstance(args.url, list) else ([args.url] if args.url else [])
+
+    if args.live:
+        if args.story_mode:
+            parser.error("--live cannot be combined with --story-mode.")
+        if len(url_list) != 1:
+            parser.error("--live takes exactly one stream URL.")
+        if args.live_window < 60 or args.live_step < 30 or args.live_segment < 2:
+            parser.error("--live-window must be >= 60, --live-step >= 30, --live-segment >= 2 seconds.")
+        if not (1 <= args.live_min_score <= 100):
+            parser.error("--live-min-score must be between 1 and 100.")
+        if args.live_clips_per_window < 1:
+            parser.error("--live-clips-per-window must be >= 1.")
+        if args.live_max_hours < 0:
+            parser.error("--live-max-hours cannot be negative.")
 
     # Validate watermark args
     if args.watermark:
@@ -849,6 +922,7 @@ def build_config(argv: list[str] | None = None) -> SimpleNamespace:
         cleanup_source=args.cleanup_source,
         jumlah_clip=args.clips,
         pilihan_rasio=args.ratio,
+        content_profile=args.content_profile,
         download_source_height=args.source_height,
         render_output_height=args.render_height,
         # Konten & Hook
@@ -966,6 +1040,14 @@ def build_config(argv: list[str] | None = None) -> SimpleNamespace:
         watermark_padding=args.padding,
         watermark_font_size=args.watermark_font_size,
         watermark_scale=args.watermark_scale,
+        # Live Stream Mode
+        live=args.live,
+        live_window=args.live_window,
+        live_step=args.live_step,
+        live_segment=args.live_segment,
+        live_min_score=args.live_min_score,
+        live_clips_per_window=args.live_clips_per_window,
+        live_max_hours=args.live_max_hours,
     )
 
     return cfg

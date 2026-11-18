@@ -39,6 +39,7 @@ def _print_banner(cfg, version, url, idx=None, total=None):
     print(f"   URL         : {url}")
     print(f"   Jumlah Clip : {cfg.jumlah_clip}")
     print(f"   Rasio       : {cfg.pilihan_rasio}")
+    print(f"   Profile     : {getattr(cfg, 'content_profile', 'podcast')}")
     print(f"   Font Style  : {cfg.gaya_font_aktif}")
     print(f"   Subtitles   : {'OFF' if cfg.no_subs else 'ON'}")
     print(f"   B-Roll      : {'ON' if cfg.use_broll else 'OFF'}")
@@ -135,6 +136,15 @@ def main():
         print("❌ ERROR: GOOGLE_API_KEY environment variable tidak ditemukan.")
         print("   Set via: export GOOGLE_API_KEY='your-key' atau buat file .env")
         sys.exit(1)
+
+    # ── Live Stream Mode ─────────────────────────────────────────────
+    if getattr(cfg, "live", False):
+        from clipping.live import run_live
+
+        _print_banner(cfg, version, cfg.url_list[0])
+        print("   Mode        : 🔴 LIVE (rolling window)")
+        run_live(cfg)
+        return
 
     url_list = getattr(cfg, "url_list", [cfg.url_youtube] if isinstance(cfg.url_youtube, str) else cfg.url_youtube)
     is_batch = len(url_list) > 1

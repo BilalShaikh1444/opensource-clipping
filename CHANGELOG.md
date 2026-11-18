@@ -8,6 +8,15 @@ All notable changes to the **OpenSource Clipping** project will be documented in
 - **Patch (x.y.Z)**: Incremented for backward-compatible bug fixes or minor patches.
 
 
+## [v1.16.0]
+
+### Added
+- **Live stream mode (`--live`)**: Clip a stream while it is live. ffmpeg records the stream (separate YouTube live video/audio HLS or a combined stream) into `.ts` segments; every `--live-step` seconds the last `--live-window` seconds are joined without re-encoding, transcribed with a Whisper model loaded once, analysed by the AI and rendered while recording continues. Clips below `--live-min-score` are skipped, clips ending near the live edge are deferred to the next overlapping window, and overlapping repeats are de-duplicated on the stream timeline. The recorder reconnects when stream URLs expire, stops when the stream ends, honours `--live-max-hours`, and prunes segments no future window needs. Results go to `outputs/live/<timestamp>/` with `live_manifest.json`. Added `clipping/live.py`, CLI flags, README section and tests.
+- **Content profiles (`--content-profile podcast|gaming`)**: New English `gaming` prompt (`clipping/gaming_prompt.py`) for gaming streams/videos. It scores streamer reactions, fails, clutch plays, reveals and hot takes, treats in-game dialogue separately from the streamer, avoids stock B-roll, forbids presenting leaks as confirmed, writes all metadata in English (legacy Indonesian fields included) and classifies clips as Highlights / Funny / News / Reaction. Same JSON fields, so rendering and uploaders are unchanged. The NVIDIA provider's category enum follows the selected profile. The default `podcast` prompt is byte-for-byte unchanged.
+
+### Changed
+- **Runner**: `run_pipeline` is split into `transcribe_source` and `analyze_and_render` (with an optional `clip_filter`) so live mode reuses analysis and rendering. Normal and batch runs behave as before.
+
 ## [v1.15.7]
 
 ### Fixed

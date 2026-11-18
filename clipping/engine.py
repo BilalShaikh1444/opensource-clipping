@@ -593,8 +593,27 @@ def _generate_json_with_retry(client, model, fallback_model, contents, config):
 MIN_CLIP_DURATION = 20
 MAX_CLIP_DURATION = 179
 
+def _content_profile(cfg=None) -> str:
+    return getattr(cfg, "content_profile", "podcast") or "podcast"
+
+
+def get_target_accounts(cfg=None) -> dict:
+    """Account/category set used for ``klasifikasi_akun`` in this profile."""
+    if _content_profile(cfg) == "gaming":
+        from .gaming_prompt import GAMING_TARGET_ACCOUNTS
+        return GAMING_TARGET_ACCOUNTS
+    return TARGET_ACCOUNTS
+
+
 def get_analysis_prompt(transkrip_lengkap: str, jumlah_clip: int, durasi_hook: int, cfg=None) -> str:
     """Centralized prompt for both Gemini and NVIDIA providers."""
+    if _content_profile(cfg) == "gaming":
+        from .gaming_prompt import build_gaming_prompt
+        return build_gaming_prompt(
+            transkrip_lengkap, jumlah_clip, durasi_hook,
+            MIN_CLIP_DURATION, MAX_CLIP_DURATION, cfg=cfg,
+        )
+
     # Build optional Hook V2 prompt section
     _hook_v2_prompt = ""
     if cfg and getattr(cfg, "hook_v2", False):
@@ -1016,7 +1035,7 @@ def analyze_with_nvidia(transkrip_lengkap: str, cfg) -> list[dict]:
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
-                        "tipe_akun": {"type": "string", "enum": list(TARGET_ACCOUNTS.keys())},
+                        "tipe_akun": {"type": "string", "enum": list(get_target_accounts(cfg).keys())},
                         "akun_tujuan": {"type": "string"},
                         "confidence": {"type": "integer"},
                         "angle_utama": {"type": "string"},
@@ -1030,7 +1049,7 @@ def analyze_with_nvidia(transkrip_lengkap: str, cfg) -> list[dict]:
                             "type": "object",
                             "additionalProperties": False,
                             "properties": {
-                                "tipe_akun": {"type": "string", "enum": list(TARGET_ACCOUNTS.keys())},
+                                "tipe_akun": {"type": "string", "enum": list(get_target_accounts(cfg).keys())},
                                 "akun_tujuan": {"type": "string"},
                                 "alasan": {"type": "string"}
                             },

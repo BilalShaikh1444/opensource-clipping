@@ -48,6 +48,20 @@ def run_pipeline(cfg, whisper_model_instance=None) -> list[dict]:
     )
 
     # Step 2 — Transcribe
+    transkrip_lengkap, data_segmen = transcribe_source(cfg, whisper_model_instance)
+
+    # Steps 3-8 — Analyse, render, save manifest
+    return analyze_and_render(cfg, transkrip_lengkap, data_segmen)
+
+
+def transcribe_source(cfg, whisper_model_instance=None) -> tuple[str, list[dict]]:
+    """
+    Transcribe ``cfg.file_video_asli``.
+
+    Uses downloaded YouTube JSON3 subtitles when ``cfg.use_dlp_subs`` is set
+    and they exist, otherwise Faster-Whisper.
+    """
+    source_platform = getattr(cfg, "source_platform", "youtube")
     transkrip_lengkap = ""
     data_segmen = []
 
@@ -82,6 +96,27 @@ def run_pipeline(cfg, whisper_model_instance=None) -> list[dict]:
             whisper_model_instance=whisper_model_instance,
         )
 
+    return transkrip_lengkap, data_segmen
+
+
+def analyze_and_render(
+    cfg,
+    transkrip_lengkap: str,
+    data_segmen: list[dict],
+    clip_filter=None,
+) -> list[dict]:
+    """
+    Run AI analysis on a transcript of ``cfg.file_video_asli``, then render
+    the selected clips into ``cfg.outputs_dir``.
+
+    Parameters
+    ----------
+    clip_filter : callable or None
+        Optional ``f(list[dict]) -> list[dict]`` applied to the normalized
+        AI clip list before rendering (used by live mode to drop low-score
+        or duplicate clips). When it returns an empty list nothing is
+        rendered and an empty manifest is returned.
+    """
     # Step 3 — Gemini AI analysis
     gemini_output_path = os.path.join(cfg.outputs_dir, "gemini_response.json")
     
@@ -103,6 +138,11 @@ def run_pipeline(cfg, whisper_model_instance=None) -> list[dict]:
 
     metadata_path = os.path.join(cfg.outputs_dir, "metadata_preview.json")
     metadata.save_metadata_preview(hasil_json, path=metadata_path)
+
+    if clip_filter is not None:
+        hasil_json = clip_filter(hasil_json)
+        if not hasil_json:
+            return []
 
     # Step 5 — Diarization (split-screen / camera-switch)
     diarization_data = None
