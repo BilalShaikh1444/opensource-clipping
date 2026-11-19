@@ -602,6 +602,7 @@ def run_live(cfg, recorder: LiveRecorder | None = None, sleep=time.sleep, clock=
                 except OSError:
                     pass
 
+            recorder.poll()  # count segments recorded while this window was processed
             lag = recorder.recorded_seconds - win_end
             print(f"   ⏱️ Window took {clock() - t0:.0f}s; now {lag:.0f}s behind live.", flush=True)
 

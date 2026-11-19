@@ -463,6 +463,8 @@ python main.py --url "STREAM_URL" --live --live-window 480 --live-step 180 \
 | `--live-clips-per-window` | `1` | Max clips per window |
 | `--live-max-hours` | `0` | Stop after N hours (0 = until the stream ends / Ctrl+C) |
 
+On a free GPU, use [`notebooks/kaggle-live-clipping.ipynb`](notebooks/kaggle-live-clipping.ipynb): set the stream URL, add `GOOGLE_API_KEY` as a Kaggle Secret (and a private YouTube cookies dataset), then **Save & Run All** so it keeps running with the browser closed.
+
 How it behaves:
 - Windows overlap by `window − step` seconds (keep it ≥ 180s, the max clip length). A moment that ends too close to the live edge is deferred to the next window so it is never cut off, and a moment already clipped is never rendered twice.
 - Clips appear roughly `--live-step` + processing time after the moment happens — a few minutes on a GPU. On CPU, Whisper may fall behind; the log warns when part of the stream is skipped.
