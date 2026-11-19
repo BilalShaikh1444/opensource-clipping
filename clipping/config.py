@@ -166,7 +166,7 @@ RENDER_OUTPUT_HEIGHT = 1080
 AI_PROVIDER = "gemini"
 NVIDIA_MODEL = "deepseek-ai/deepseek-v4-pro"
 GEMINI_MODEL = "gemini-3-flash-preview"
-GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"
+GEMINI_FALLBACK_MODEL = "gemini-3.1-flash-lite"  # gemini-2.5-flash is retired for new API keys
 
 
 # ==============================================================================

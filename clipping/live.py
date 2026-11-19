@@ -30,6 +30,14 @@ from dataclasses import dataclass, field
 # must be at least this long so a deferred clip fits whole in the next window.
 MAX_CLIP_SECONDS = 179
 
+# Gemini limits per window. The normal pipeline waits up to 10 attempts with a
+# 15-minute timeout each, which can stall a live run for 40+ minutes when the
+# model is overloaded. In live mode a failed window is cheap: the next window
+# overlaps it, so give up quickly. Worst case ~2 x 150 s + 10 s + fallback 150 s.
+LIVE_GEMINI_TIMEOUT_S = 150
+LIVE_GEMINI_MAX_ATTEMPTS = 2
+LIVE_GEMINI_RETRY_WAIT_S = 10
+
 
 # ==============================================================================
 # Pure helpers (unit-tested)
@@ -550,6 +558,10 @@ def run_live(cfg, recorder: LiveRecorder | None = None, sleep=time.sleep, clock=
                 win_cfg.jumlah_clip = cfg.live_clips_per_window
                 win_cfg.use_dlp_subs = False
                 win_cfg.load_gemini_json = False
+                win_cfg.gemini_timeout_s = LIVE_GEMINI_TIMEOUT_S
+                win_cfg.gemini_max_attempts = LIVE_GEMINI_MAX_ATTEMPTS
+                win_cfg.gemini_retry_wait_s = LIVE_GEMINI_RETRY_WAIT_S
+                win_cfg.gemini_retry_increment_s = 0
 
                 transcript, segs = engine.transcribe_video(
                     win_video,

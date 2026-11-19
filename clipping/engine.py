@@ -524,9 +524,15 @@ def _is_retryable(exc: Exception) -> bool:
     return any(k in msg for k in keywords)
 
 
-def _generate_json_with_retry(client, model, fallback_model, contents, config):
+def _generate_json_with_retry(
+    client, model, fallback_model, contents, config,
+    max_attempts: int = MAX_ATTEMPTS,
+    initial_wait: int = INITIAL_WAIT_SECONDS,
+    wait_increment: int = WAIT_INCREMENT_SECONDS,
+):
     last_exc = None
     status_code = None
+    MAX_ATTEMPTS = max(1, int(max_attempts))  # local name keeps the log/error text unchanged
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
@@ -557,7 +563,7 @@ def _generate_json_with_retry(client, model, fallback_model, contents, config):
             if (not retryable) or attempt == MAX_ATTEMPTS:
                 break
 
-            wait_seconds = INITIAL_WAIT_SECONDS + ((attempt - 1) * WAIT_INCREMENT_SECONDS)
+            wait_seconds = initial_wait + ((attempt - 1) * wait_increment)
             print(f"[Gemini] Retry lagi dalam {wait_seconds} detik...")
             time.sleep(wait_seconds)
 
@@ -1254,7 +1260,9 @@ def analyze_with_gemini(
             # Preserve beta routing for preview models and structured output
             # across SDK versions (SDK 3 changed its default to v1).
             api_version="v1beta",
-            timeout=REQUEST_TIMEOUT_MS,
+            # Live mode sets a shorter per-request timeout so one hung request
+            # cannot stall the stream; normal runs keep the 15-minute default.
+            timeout=int(getattr(cfg, "gemini_timeout_s", 0) or 0) * 1000 or REQUEST_TIMEOUT_MS,
             retry_options=types.HttpRetryOptions(attempts=1),
         ),
     )
@@ -1348,4 +1356,7 @@ def analyze_with_gemini(
         fallback_model=getattr(cfg, "gemini_fallback_model", None),
         contents=prompt,
         config=gemini_config,
+        max_attempts=getattr(cfg, "gemini_max_attempts", MAX_ATTEMPTS),
+        initial_wait=getattr(cfg, "gemini_retry_wait_s", INITIAL_WAIT_SECONDS),
+        wait_increment=getattr(cfg, "gemini_retry_increment_s", WAIT_INCREMENT_SECONDS),
     )

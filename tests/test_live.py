@@ -240,6 +240,68 @@ def test_run_live_keeps_going_when_a_window_fails(clean_env, monkeypatch):
     assert len(calls) == 2 and rec.stopped
 
 
+# ── Gemini limits ─────────────────────────────────────────────────────────────
+
+class _Busy503(Exception):
+    status_code = 503
+
+
+def test_retry_limits_are_configurable(monkeypatch):
+    from clipping import engine
+
+    sleeps, calls = [], []
+    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+
+    class Models:
+        def generate_content(self, model, contents, config):
+            calls.append(model)
+            if model == "main":
+                raise _Busy503("503 UNAVAILABLE high demand")
+            return types.SimpleNamespace(text='[{"rank": 1}]')
+
+    client = types.SimpleNamespace(models=Models())
+    out = engine._generate_json_with_retry(
+        client, "main", "backup", "prompt", None, max_attempts=2, initial_wait=10, wait_increment=0,
+    )
+    assert out == [{"rank": 1}]
+    assert calls == ["main", "main", "backup"] and sleeps == [10]
+
+
+def test_default_retry_limits_unchanged(monkeypatch):
+    from clipping import engine
+
+    sleeps = []
+    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+
+    class Models:
+        def generate_content(self, model, contents, config):
+            raise _Busy503("503")
+
+    with pytest.raises(RuntimeError):
+        engine._generate_json_with_retry(types.SimpleNamespace(models=Models()), "m", None, "p", None)
+    assert len(sleeps) == engine.MAX_ATTEMPTS - 1 and sleeps[0] == engine.INITIAL_WAIT_SECONDS
+
+
+def test_run_live_caps_gemini_per_window(clean_env, monkeypatch):
+    from clipping import engine
+
+    cfg = config.build_config(["--url", "https://example.test/live", "--live"])
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=lambda *a, **k: None))
+    monkeypatch.setattr(live, "build_window_video", lambda segs, out: out)
+    monkeypatch.setattr(engine, "transcribe_video", lambda path, **k: ("[0 - 1] hi", []))
+    seen = []
+    monkeypatch.setattr(runner, "analyze_and_render", lambda win_cfg, *a, **k: seen.append(win_cfg) or [])
+    live.run_live(cfg, recorder=FakeRecorder(total=300), sleep=lambda s: None)
+    w = seen[0]
+    assert (w.gemini_timeout_s, w.gemini_max_attempts, w.gemini_retry_wait_s) == (
+        live.LIVE_GEMINI_TIMEOUT_S, live.LIVE_GEMINI_MAX_ATTEMPTS, live.LIVE_GEMINI_RETRY_WAIT_S)
+    assert not hasattr(cfg, "gemini_timeout_s")  # the user's base config is untouched
+
+
+def test_default_fallback_model_is_not_retired(clean_env):
+    assert config.build_config(["--url", "https://x.test"]).gemini_fallback_model != "gemini-2.5-flash"
+
+
 # ── Real ffmpeg (skipped when ffmpeg is unavailable) ─────────────────────────
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
