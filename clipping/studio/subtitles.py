@@ -51,6 +51,7 @@ typography = _load_studio_internal_module("typography.py", "clipping_studio_typo
 download_google_font = typography.download_google_font
 register_fonts_for_libass = typography.register_fonts_for_libass
 siapkan_font_tipografi = typography.siapkan_font_tipografi
+gameplay_layout = _load_studio_internal_module("gameplay_layout.py", "clipping_studio_gameplay_layout")
 
 def buat_file_ass(
     data_segmen,
@@ -91,6 +92,15 @@ def buat_file_ass(
     if typography_plan is None:
         typography_plan = []
 
+    # Gameplay layout: captions live in the bottom band, in capitals, GTA yellow highlight.
+    gameplay = gameplay_layout.is_gameplay_layout(cfg, rasio)
+    if gameplay:
+        data_segmen = [
+            {**seg, "words": [{**w, "word": str(w["word"]).upper()} for w in seg.get("words", [])]}
+            for seg in data_segmen
+        ]
+    highlight = "&H00D4FF&" if gameplay else "&H00FFFF&"  # ASS colours are BGR: #FFD400 vs #FFFF00
+
     typo_dict = {}
     for plan in typography_plan:
         clean_word = plan.get("kata_utama", "").lower().strip(string.punctuation)
@@ -101,6 +111,8 @@ def buat_file_ass(
 
     outline_val = 3 if pakai_karaoke else 0.2
     shadow_val = 2.5 if pakai_karaoke else 0.2
+    if gameplay:
+        outline_val, shadow_val = 6, 3
 
     daftar_font = cfg.daftar_font
     gaya = cfg.gaya_font_aktif
@@ -141,6 +153,10 @@ def buat_file_ass(
         margin_v = int((cfg.ass_margin_916 if _is_vertical_ratio(rasio) else cfg.ass_margin_169) * scale_factor)
     font_sz = int((cfg.ass_font_916 if _is_vertical_ratio(rasio) else cfg.ass_font_169) * scale_factor)
     margin_lr = int((60 if _is_vertical_ratio(rasio) else 40) * scale_factor)
+    if gameplay:
+        align = 2
+        font_sz = int(150 * scale_factor)  # the caption band is ~650 px tall; fill it
+        margin_v = gameplay_layout.caption_margin_v(cfg, play_res_x, play_res_y, font_sz, source_dim)
 
     header = (
         f"[Script Info]\n"
@@ -185,7 +201,7 @@ def buat_file_ass(
                             if pakai_karaoke:
                                 if j == i:
                                     text_parts.append(
-                                        f"{{\\c&H00FFFF&}}{x['word']}{{\\c&HFFFFFF&}}"
+                                        f"{{\\c{highlight}}}{x['word']}{{\\c&HFFFFFF&}}"
                                     )
                                 else:
                                     text_parts.append(x["word"])
@@ -357,7 +373,7 @@ def buat_file_ass(
                     if pakai_karaoke:
                         pos_tag = f"\\pos({int(word_x)},{int(line_y)})"
                         c_tag = "\\c&HFFFFFF&"
-                        anim_tag = f"\\fscx{target_scale}\\fscy{target_scale}\\t({t_start},{t_start},\\c&H00FFFF&)\\t({w_end_ms},{w_end_ms},\\c&HFFFFFF&)"
+                        anim_tag = f"\\fscx{target_scale}\\fscy{target_scale}\\t({t_start},{t_start},\\c{highlight})\\t({w_end_ms},{w_end_ms},\\c&HFFFFFF&)"
                     else:
                         if w_anim == "stagger_up":
                             y_start = int(line_y + 30)

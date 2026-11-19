@@ -2,6 +2,8 @@
 General helper utilities for Studio rendering workflow.
 """
 
+import os
+
 
 def format_seconds(seconds):
     """
@@ -30,5 +32,12 @@ def escape_ffmpeg_filter_value(value: str) -> str:
     Returns:
         Escaped value string for FFmpeg filter usage.
     """
+    if os.name == "nt":
+        # Windows absolute paths contain a drive colon ("C:\..."). Inside an
+        # unquoted filtergraph the colon must survive two unescaping passes
+        # (graph, then filter options), and backslashes become separators-safe
+        # forward slashes. Linux/Kaggle keep the original escaping below.
+        v = str(value).replace("\\", "/")
+        return v.replace("'", r"\\\'").replace(":", r"\\:")
     return str(value).replace("\\", r"\\").replace(":", r"\:").replace("'", r"\'")
 

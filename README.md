@@ -441,6 +441,24 @@ python main.py --url "VIDEO_URL" --content-profile gaming --clips 5
 
 The gaming prompt only sees the transcript, so it judges moments by what the streamer says and how loudly — a silent but impressive play will not be found.
 
+## 🕹️ Gameplay Layout (`--layout gameplay`)
+
+For gaming footage, the default 9:16 face-tracked crop throws away most of the screen. `--layout gameplay` keeps the **whole 16:9 game screen** full-width in the middle of the Short, puts the **clip title** in the top band and the **captions** in the bottom band, over a blurred copy of the gameplay.
+
+```bash
+python main.py --url "VIDEO_URL" --content-profile gaming --layout gameplay --font-style GTA
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--layout` | `crop` | `gameplay` = full screen + title/caption bands; `crop` = face-tracked crop |
+| `--font-style GTA` | – | Anton captions (capitals, yellow karaoke highlight) and Bangers emphasis — SIL OFL fonts |
+| `--layout-background` | `blur` | Band fill: `blur` (blurred, darkened gameplay) or `black` |
+| `--title-font-file` | Bangers | Use your own title font file, e.g. a licensed copy of Pricedown |
+| `--no-title` | off | Leave the title band empty |
+
+Pricedown (the GTA logo font) is a commercial Typodermic font and is not downloaded automatically; pass your own licensed file with `--title-font-file`.
+
 ## 🔴 Live Stream Mode
 
 `--live` clips a stream **while it is still live** instead of waiting for the replay. The stream is recorded continuously in short segments; every `--live-step` seconds the last `--live-window` seconds are transcribed, the AI picks the strongest moment, and the clip is rendered while recording continues.

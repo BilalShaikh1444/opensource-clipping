@@ -54,6 +54,7 @@ broll = _load_studio_internal_module("broll.py", "clipping_studio_broll")
 crop_center_broll = broll.crop_center_broll
 face_detection = _load_studio_internal_module("face_detection.py", "clipping_studio_face_detection")
 get_face_detector = face_detection.get_face_detector
+gameplay_layout = _load_studio_internal_module("gameplay_layout.py", "clipping_studio_gameplay_layout")
 
 def buat_video_hybrid(
     input_video,
@@ -165,9 +166,13 @@ def buat_video_hybrid(
     current_time = 0.0
     last_detect_percent = -1
     
-    skip_tracking = getattr(cfg, "static_crop", False) and rasio in ["1:1", "3:4", "4:5"]
+    use_gameplay = gameplay_layout.is_gameplay_layout(cfg, rasio)
+    # The gameplay layout shows the whole frame, so face tracking is not needed.
+    skip_tracking = (getattr(cfg, "static_crop", False) and rasio in ["1:1", "3:4", "4:5"]) or use_gameplay
 
-    if skip_tracking:
+    if use_gameplay:
+        print(f"🎮 {label} - Gameplay layout (full game screen, title + captions bands)...", flush=True)
+    elif skip_tracking:
         print(f"🧠 {label} - Static Crop aktif (tanpa face tracking)...", flush=True)
     else:
         print(f"🧠 {label} - Analisa wajah dimulai...", flush=True)
@@ -338,6 +343,14 @@ def buat_video_hybrid(
     TRANSITION_DUR = 0.3
     MAX_ZOOM = 1.10
 
+    gp_geom = gp_title = None
+    gp_background = getattr(cfg, "layout_background", "blur")
+    if use_gameplay:
+        gp_geom = gameplay_layout.geometry(base_out_w, base_out_h, width, height)
+        _, _, tw, th = gp_geom["title"]
+        if not getattr(cfg, "no_title", False):
+            gp_title = gameplay_layout.render_title(getattr(cfg, "gameplay_title_text", ""), tw, th, cfg)
+
     try:
         cap.set(cv2.CAP_PROP_POS_MSEC, start_clip * 1000)
         frame_count = 0
@@ -357,7 +370,12 @@ def buat_video_hybrid(
             waktu_absolut = start_clip + t
 
             # --- 1. ALWAYS CREATE CROPPED OUTPUT ---
-            if _is_vertical_ratio(rasio):
+            if use_gameplay:
+                cx_base, cy_base = default_cx, default_cy
+                frame_normal = gameplay_layout.compose(
+                    frame_utama, base_out_w, base_out_h, gp_geom, gp_title, gp_background
+                )
+            elif _is_vertical_ratio(rasio):
                 # Vertical/square ratios: face-tracked crop
                 cx_base, cy_base = _get_pos(t)
                 x1_crop = int(max(0, min(cx_base - crop_w // 2, width - crop_w)))
@@ -461,9 +479,19 @@ def buat_video_hybrid(
                         progress_broll = elapsed_broll / durasi_total_broll if durasi_total_broll > 0 else 0
                         zoom_factor = 1.0 + ((MAX_ZOOM - 1.0) * progress_broll)
 
-                        frame_b_crop = crop_center_broll(frame_b, base_out_w, base_out_h)
-                        M = cv2.getRotationMatrix2D((base_out_w / 2, base_out_h / 2), 0, zoom_factor)
-                        frame_b_zoomed = cv2.warpAffine(frame_b_crop, M, (base_out_w, base_out_h))
+                        if use_gameplay:
+                            # B-roll plays inside the game window; bands and title stay.
+                            _, _, gw, gh = gp_geom["game"]
+                            b_crop = crop_center_broll(frame_b, gw, gh)
+                            M = cv2.getRotationMatrix2D((gw / 2, gh / 2), 0, zoom_factor)
+                            frame_b_zoomed = gameplay_layout.compose(
+                                frame_utama, base_out_w, base_out_h, gp_geom, gp_title, gp_background,
+                                game_frame=cv2.warpAffine(b_crop, M, (gw, gh)),
+                            )
+                        else:
+                            frame_b_crop = crop_center_broll(frame_b, base_out_w, base_out_h)
+                            M = cv2.getRotationMatrix2D((base_out_w / 2, base_out_h / 2), 0, zoom_factor)
+                            frame_b_zoomed = cv2.warpAffine(frame_b_crop, M, (base_out_w, base_out_h))
 
                         alpha = 1.0
                         if elapsed_broll < TRANSITION_DUR:

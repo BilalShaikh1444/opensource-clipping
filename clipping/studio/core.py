@@ -212,6 +212,8 @@ def proses_klip(
 
     typography_plan = clip.get("typography_plan", [])
     siapkan_font_tipografi(cfg)
+    # Read by the gameplay layout renderer (--layout gameplay) to draw the title band.
+    cfg.gameplay_title_text = judul_en or judul or ""
 
     h_ts, m_ts, a_hook, a_main = (
         f"h_{rank}.ts",

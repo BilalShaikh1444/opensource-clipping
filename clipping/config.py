@@ -88,8 +88,12 @@ DAFTAR_FONT = {
     "HORMOZI": {
         "utama": {
             "nama": "Montserrat",
-            "file": "Montserrat-Regular.ttf",
-            "url": "https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-400-normal.ttf",
+            # The fontsource latin-400 file is internally named "Montserrat Thin",
+            # so libass never matched "Montserrat" and fell back to a system font.
+            # The upstream static Regular is named "Montserrat". New file name
+            # so a cached misnamed copy is not reused.
+            "file": "Montserrat-Regular-static.ttf",
+            "url": "https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-Regular.ttf",
             "bold": 0,
         },
         "khusus": {
@@ -110,6 +114,21 @@ DAFTAR_FONT = {
             "nama": "Bebas Neue",
             "file": "BebasNeue-Regular.ttf",
             "url": "https://cdn.jsdelivr.net/fontsource/fonts/bebas-neue@latest/latin-400-normal.ttf",
+            "bold": 0,
+        },
+    },
+    # Gaming / GTA look: bold condensed captions, comic-style emphasis (all SIL OFL).
+    "GTA": {
+        "utama": {
+            "nama": "Anton",
+            "file": "Anton-Regular.ttf",
+            "url": "https://cdn.jsdelivr.net/fontsource/fonts/anton@latest/latin-400-normal.ttf",
+            "bold": 0,
+        },
+        "khusus": {
+            "nama": "Bangers",
+            "file": "Bangers-Regular.ttf",
+            "url": "https://cdn.jsdelivr.net/fontsource/fonts/bangers@latest/latin-400-normal.ttf",
             "bold": 0,
         },
     },
@@ -414,8 +433,32 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--font-style",
         default=GAYA_FONT_AKTIF,
-        choices=["DEFAULT", "STORYTELLER", "HORMOZI", "CINEMATIC"],
+        choices=["DEFAULT", "STORYTELLER", "HORMOZI", "CINEMATIC", "GTA"],
         help="Font style preset",
+    )
+    p.add_argument(
+        "--layout",
+        choices=["crop", "gameplay"],
+        default="crop",
+        help="Vertical layout. 'crop' = face-tracked crop of the source (default). "
+             "'gameplay' = whole 16:9 screen in the middle, title band on top, captions band below.",
+    )
+    p.add_argument(
+        "--layout-background",
+        choices=["blur", "black"],
+        default="blur",
+        help="Fill of the title/caption bands in --layout gameplay.",
+    )
+    p.add_argument(
+        "--title-font-file",
+        default=None,
+        help="Font file (.ttf/.otf) for the gameplay title, e.g. a licensed Pricedown. Default: Bangers (OFL).",
+    )
+    p.add_argument(
+        "--no-title",
+        action="store_true",
+        default=False,
+        help="Do not draw the title band text in --layout gameplay.",
     )
     p.add_argument(
         "--advanced-text",
@@ -1011,6 +1054,10 @@ def build_config(argv: list[str] | None = None) -> SimpleNamespace:
         dev_mode_with_output_merge=args.dev_mode_with_output_merge,
         track_lines=args.track_lines,
         static_crop=args.static_crop,
+        layout=args.layout,
+        layout_background=args.layout_background,
+        title_font_file=os.path.abspath(args.title_font_file) if args.title_font_file else None,
+        no_title=args.no_title,
         # Story Clip Mode
         story_mode=args.story_mode,
         story_recipe_path=os.path.abspath(args.story_recipe) if args.story_recipe else None,
