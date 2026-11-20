@@ -876,6 +876,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0,
         help="Stop after this many hours (0 = until the stream ends or Ctrl+C).",
     )
+    live_group.add_argument(
+        "--upload-drive",
+        action="store_true",
+        default=False,
+        help="Upload each finished live clip (video, thumbnail, title/description .txt) to Google Drive. "
+             "Needs GDRIVE_TOKEN_JSON (see scripts/generate_drive_token.py).",
+    )
 
     return p
 
@@ -1095,6 +1102,7 @@ def build_config(argv: list[str] | None = None) -> SimpleNamespace:
         live_min_score=args.live_min_score,
         live_clips_per_window=args.live_clips_per_window,
         live_max_hours=args.live_max_hours,
+        upload_drive=args.upload_drive,
     )
 
     return cfg

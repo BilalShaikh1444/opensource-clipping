@@ -483,6 +483,19 @@ python main.py --url "STREAM_URL" --live --live-window 480 --live-step 180 \
 
 On a free GPU, use [`notebooks/kaggle-live-clipping.ipynb`](notebooks/kaggle-live-clipping.ipynb): set the stream URL, add `GOOGLE_API_KEY` as a Kaggle Secret (and a private YouTube cookies dataset), then **Save & Run All** so it keeps running with the browser closed.
 
+### Upload clips to Google Drive as they are made (`--upload-drive`)
+
+Interactive Kaggle/Colab sessions can be stopped when idle, which deletes their files. With `--upload-drive`, every finished live clip is copied to Google Drive immediately (video, thumbnail and a `.txt` with title/description/tags), in `Live Clips/<date> <stream title>/`.
+
+One-time setup (on your own computer):
+1. [Google Cloud Console](https://console.cloud.google.com/) → create a project → **APIs & Services → Library** → enable **Google Drive API**.
+2. **OAuth consent screen** → External → fill app name and your email → add yourself as a test user → then **Publish app** ("In production"). Testing-mode tokens expire after 7 days; the `drive.file` scope needs no Google review.
+3. **Credentials → Create credentials → OAuth client ID → Desktop app** → download the JSON → save as `.credentials/drive_client_secret.json`.
+4. Run `python scripts/generate_drive_token.py` and sign in. It writes `.credentials/drive_token.json` and creates the `Live Clips` folder.
+5. Copy the whole content of `drive_token.json` into a Kaggle secret named `GDRIVE_TOKEN_JSON`. The live notebook turns uploading on when the secret is attached.
+
+The token can only see files this app created (`drive.file`). Revoke it any time at https://myaccount.google.com/permissions. Upload errors are logged and never stop clipping. Optional: set `GDRIVE_FOLDER` to change the folder name.
+
 How it behaves:
 - Windows overlap by `window − step` seconds (keep it ≥ 180s, the max clip length). A moment that ends too close to the live edge is deferred to the next window so it is never cut off, and a moment already clipped is never rendered twice.
 - Clips appear roughly `--live-step` + processing time after the moment happens — a few minutes on a GPU. On CPU, Whisper may fall behind; the log warns when part of the stream is skipped.

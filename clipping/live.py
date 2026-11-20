@@ -491,6 +491,18 @@ def run_live(cfg, recorder: LiveRecorder | None = None, sleep=time.sleep, clock=
     recorder.start()
     if recorder.title:
         print(f"   Title: {recorder.title}")
+
+    uploader = None
+    drive_run_name = f"{time.strftime('%Y-%m-%d %H.%M')} {recorder.title or 'live'}"
+    if getattr(cfg, "upload_drive", False):
+        try:
+            from .drive_upload import DriveUploader
+            uploader = DriveUploader.from_env()
+            uploader.run_folder(drive_run_name)
+            print(f"   Drive : uploading clips to '{uploader.root_folder}/{drive_run_name}'")
+        except Exception as e:
+            uploader = None
+            print(f"   ⚠️ Google Drive upload disabled: {e}")
     print(f"   Output: {live_dir}")
     print(
         f"   Window {window_s:.0f}s, every {step_s:.0f}s, min score {cfg.live_min_score}, "
@@ -597,8 +609,12 @@ def run_live(cfg, recorder: LiveRecorder | None = None, sleep=time.sleep, clock=
                         at = _hms(row["live_stream_start"] or 0)
                         if row.get("status") == "success":
                             print(f"   ✅ Clip ready (stream {at}): {row.get('video_path')}")
+                            if uploader is not None:
+                                row["drive_link"] = uploader.upload_clip(row, drive_run_name)
                         else:
                             print(f"   ❌ Clip at stream {at} failed to render: {row.get('error')}")
+                    if uploader is not None:
+                        _save_manifest()
                     if not rendered:
                         print("   (no new clip in this window)")
                 if os.path.exists(win_video):
